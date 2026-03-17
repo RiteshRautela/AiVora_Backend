@@ -1,19 +1,33 @@
 const extractJson = (aiResponse) => {
   try {
-
     if (!aiResponse) return null;
 
-    const firstBrace = aiResponse.indexOf("{");
-    const lastBrace = aiResponse.lastIndexOf("}");
+    // 🔥 Remove markdown wrappers if AI adds them
+    aiResponse = aiResponse.replace(/```json|```/g, "").trim();
 
-    if (firstBrace === -1 || lastBrace === -1) return null;
+    // 🔥 Find first valid JSON block
+    const match = aiResponse.match(/\{[\s\S]*\}/);
 
-    const jsonString = aiResponse.slice(firstBrace, lastBrace + 1);
+    if (!match) {
+      console.log("❌ No JSON found in AI response");
+      return null;
+    }
 
-    return JSON.parse(jsonString);
+    const jsonString = match[0];
+
+    // 🔥 Parse safely
+    const parsed = JSON.parse(jsonString);
+
+    // 🔥 Basic structure validation
+    if (!parsed.code || !parsed.message) {
+      console.log("❌ Missing required fields:", parsed);
+      return null;
+    }
+
+    return parsed;
 
   } catch (err) {
-    console.error("JSON parsing failed:", err);
+    console.error("❌ JSON parsing failed:", err);
     return null;
   }
 };

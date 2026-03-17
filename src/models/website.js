@@ -9,7 +9,7 @@ const messageSchema = new mongoose.Schema({
 
     content:{
         type:String,
-        reuired:true
+        required:true
     }
 
 },{timestamps:true})
@@ -40,7 +40,7 @@ const websiteSchema = new mongoose.Schema({
         default:false,
     },
 
-    deplourl:{
+    deployurl:{
         type:String,
         
     },

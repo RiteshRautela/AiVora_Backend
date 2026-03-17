@@ -1,6 +1,12 @@
 const openRouterURL = "https://openrouter.ai/api/v1/chat/completions";
 // const model = "deepseek/deepseek-chat";
 const model = "openrouter/free";
+// const model = "mistralai/mistral-7b-instruct";
+// const model= "deepseek/deepseek-v3.2"
+// const model = "deepseek/deepseek-chat-v3-0324"
+
+
+
 
 const generateResponse = async (prompt) => {
 
@@ -50,7 +56,7 @@ Rules:
   }
 
   const data = await res.json();
-  console.log("OPENROUTER DATA:", data);
+  // console.log("OPENROUTER DATA:", data);
 
   return data.choices[0].message.content;
 };
