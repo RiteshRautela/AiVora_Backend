@@ -232,8 +232,26 @@ RETURN ONLY JSON:
 websiteRouter.get("/getall", userAuth, async (req, res) => {
   try {
     const websites = await Website.find({ user: req.user._id });
+    const frontendUrl = process.env.FRONTEND_URL;
 
-    return res.status(200).json(websites);
+    const updatedWebsites = await Promise.all(
+      websites.map(async (website) => {
+        if (!website.deployed || !website.slug || !frontendUrl) {
+          return website;
+        }
+
+        const expectedDeployUrl = `${frontendUrl}/live/${website.slug}`;
+
+        if (website.deployurl !== expectedDeployUrl) {
+          website.deployurl = expectedDeployUrl;
+          await website.save();
+        }
+
+        return website;
+      })
+    );
+
+    return res.status(200).json(updatedWebsites);
   } catch (error) {
     return res.status(500).json({
       message: `get all websites error ${error.message}`,
@@ -267,7 +285,7 @@ websiteRouter.get("/deploy/:id", userAuth, async (req, res) => {
     website.deployed = true;
 
     // 🔥 deploy URL
-    website.deployurl = `${process.env.FRONTEND_URL}/site/${website.slug}`;
+    website.deployurl = `${process.env.FRONTEND_URL}/live/${website.slug}`;
 
     await website.save();
 
@@ -285,7 +303,6 @@ websiteRouter.get("/getbyslug/:slug", async (req, res) => {
   try {
     const website = await Website.findOne({
       slug: req.params.slug,
-      user: req.user._id
     });
 
     if (!website) {
