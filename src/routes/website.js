@@ -267,16 +267,35 @@ websiteRouter.get("/deploy/:id", userAuth, async (req, res) => {
     website.deployed = true;
 
     // 🔥 deploy URL
-    website.deployUrl = `${process.env.FRONTEND_URL}/site/${website.slug}`;
+    website.deployurl = `${process.env.FRONTEND_URL}/site/${website.slug}`;
 
     await website.save();
 
     return res.status(200).json({
-      url: website.deployUrl,
+      url: website.deployurl,
     });
   } catch (error) {
     return res.status(500).json({
       message: `deploy website error ${error.message}`,
+    });
+  }
+});
+
+websiteRouter.get("/getbyslug/:slug", async (req, res) => {
+  try {
+    const website = await Website.findOne({
+      slug: req.params.slug,
+      user: req.user._id
+    });
+
+    if (!website) {
+      return res.status(404).json({ message: "website not found" });
+    }
+
+    return res.status(200).json(website);
+  } catch (error) {
+    return res.status(500).json({
+      message: `get website by slug error ${error.message}`,
     });
   }
 });
