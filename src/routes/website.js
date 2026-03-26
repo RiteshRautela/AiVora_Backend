@@ -14,6 +14,12 @@ websiteRouter.post("/generate", userAuth, async (req, res) => {
       return res.status(400).json({ message: "prompt is required" });
     }
 
+    if (req.user.credits <= 0) {
+      return res.status(403).json({
+        message: "Not enough credits to generate a website",
+      });
+    }
+
     const finalPrompt = process.env.masterPrompt.replace("USER_PROMPT", prompt);
 
     // 🔥 CALL AI
@@ -86,6 +92,7 @@ websiteRouter.post("/generate", userAuth, async (req, res) => {
     });
 
     await website.save();
+    req.user.credits -= 1;
     await req.user.save();
 
     // 🔥 RESPONSE

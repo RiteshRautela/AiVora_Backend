@@ -3,9 +3,19 @@ const express = require("express");
 const plans = require("../config/plans");
 const { userAuth } = require("../middleware/auth");
 const Payment = require("../models/payment");
+const User = require("../models/user");
 const instance = require("../util/razorpay");
 
 const paymentRouter = express.Router();
+
+const verifyWebhookSignature = (body, signature, secret) => {
+  const expectedSignature = crypto
+    .createHmac("sha256", secret.trim())
+    .update(body)
+    .digest("hex");
+
+  return expectedSignature === signature;
+};
 
 paymentRouter.post("/payment/create", userAuth, async (req, res) => {
   try {
@@ -161,6 +171,91 @@ paymentRouter.post("/premium/verify", userAuth, async (req, res) => {
     });
   } catch (err) {
     console.error("PAYMENT VERIFY ERROR:", err);
+    return res.status(500).json({
+      message: err.message,
+    });
+  }
+});
+
+paymentRouter.post("/payment/webhook", async (req, res) => {
+  try {
+    const webhookSecret =
+      process.env.RAZORPAY_WEBHOOK_SECRET ||
+      process.env.RAZORPAY_webhook_Secret;
+
+    if (!webhookSecret) {
+      return res.status(500).json({
+        message: "Razorpay webhook secret is missing in environment variables",
+      });
+    }
+
+    const webhookSignature = req.get("X-Razorpay-Signature");
+
+    if (!webhookSignature) {
+      return res.status(400).json({
+        message: "Webhook signature is required",
+      });
+    }
+
+    const isWebhookValid = verifyWebhookSignature(
+      JSON.stringify(req.body),
+      webhookSignature,
+      webhookSecret
+    );
+
+    if (!isWebhookValid) {
+      return res.status(400).json({
+        message: "Webhook signature is invalid",
+      });
+    }
+
+    const paymentDetails = req.body?.payload?.payment?.entity;
+
+    if (!paymentDetails?.order_id) {
+      return res.status(400).json({
+        message: "Payment details are missing in webhook payload",
+      });
+    }
+
+    const payment = await Payment.findOne({
+      orderId: paymentDetails.order_id,
+    });
+
+    if (!payment) {
+      return res.status(404).json({
+        message: "Payment record not found",
+      });
+    }
+
+    payment.paymentId = paymentDetails.id || payment.paymentId;
+    payment.status = paymentDetails.status || payment.status;
+
+    if (req.body.event === "payment.captured" && payment.status !== "paid") {
+      payment.status = "paid";
+    }
+
+    if (
+      req.body.event === "payment.captured" &&
+      payment.status === "paid" &&
+      !payment.signature
+    ) {
+      const user = await User.findById(payment.userId);
+
+      if (user) {
+        user.credits += payment.credits;
+        user.plan = payment.plan;
+        await user.save();
+      }
+    }
+
+    payment.signature = webhookSignature;
+    await payment.save();
+
+    return res.status(200).json({
+      message: "Webhook received successfully",
+    });
+  } catch (err) {
+    console.error("PAYMENT WEBHOOK ERROR:", err);
     return res.status(500).json({
       message: err.message,
     });
