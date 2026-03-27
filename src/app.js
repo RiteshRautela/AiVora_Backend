@@ -7,36 +7,37 @@ const userRouter  = require("./routes/user")
 const websiteRouter = require("./routes/website")
 const paymentRouter = require("./routes/payment")
 const app = express();   
-const cors = require("cors");
 const PORT = process.env.PORT || 7777;
-const allowedOrigin = (process.env.FRONTEND_URL || "").replace(/\/$/, "");
-const corsOptions = {
-  origin: (origin, callback) => {
-    if (!origin) {
-      return callback(null, true);
-    }
-
-    const normalizedOrigin = origin.replace(/\/$/, "");
-
-    if (
-      normalizedOrigin === allowedOrigin ||
-      normalizedOrigin === "http://localhost:5173"
-    ) {
-      return callback(null, true);
-    }
-
-    return callback(null, false);
-  },
-  credentials: true,
-  methods: ["GET", "POST", "PATCH", "DELETE", "PUT", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"],
-  optionsSuccessStatus: 204,
-};
+const allowedOrigins = [
+  (process.env.FRONTEND_URL || "").trim().replace(/\/$/, ""),
+  "https://aivoraxx.vercel.app",
+  "http://localhost:5173",
+].filter(Boolean);
 
 app.use(express.json()); 
 app.use(cookieParser());
-app.use(cors(corsOptions))
-app.options(/.*/, cors(corsOptions));
+app.use((req, res, next) => {
+  const origin = (req.headers.origin || "").trim().replace(/\/$/, "");
+
+  if (allowedOrigins.includes(origin)) {
+    res.header("Access-Control-Allow-Origin", origin);
+    res.header("Access-Control-Allow-Credentials", "true");
+    res.header(
+      "Access-Control-Allow-Methods",
+      "GET, POST, PATCH, DELETE, PUT, OPTIONS"
+    );
+    res.header(
+      "Access-Control-Allow-Headers",
+      "Content-Type, Authorization, X-Requested-With"
+    );
+  }
+
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(204);
+  }
+
+  next();
+});
 
 app.get("/", (req, res) => {
   res.send("Backend is running");
