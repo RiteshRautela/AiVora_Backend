@@ -8,11 +8,12 @@ const websiteRouter = require("./routes/website")
 const paymentRouter = require("./routes/payment")
 const app = express();   
 const cors = require("cors");
+const PORT = process.env.PORT || 7777;
 
 app.use(express.json()); 
 app.use(cookieParser());
 app.use(cors({
-  origin: 'http://localhost:5173', 
+  origin: process.env.FRONTEND_URL,
   credentials: true, 
    methods: ["GET", "POST", "PATCH", "DELETE", "PUT"],
 }))
@@ -27,8 +28,8 @@ app.use("/" , paymentRouter)
 connectDB()
   .then(() => {
     console.log("Database connected successfully");
-    app.listen(process.env.PORT, () => {
-      console.log("app is listening at port 7777");
+    app.listen(PORT, () => {
+      console.log(`app is listening at port ${PORT}`);
     });
   })
   .catch((err) => {

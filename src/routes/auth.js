@@ -5,6 +5,16 @@ const { validateSignupInput, validateLogIn } = require("../util/validation")
 const User = require("../models/user")
 const jwt = require("jsonwebtoken");
 
+const getCookieOptions = () => {
+    const isProduction = process.env.NODE_ENV === "production";
+
+    return {
+        expires: new Date(Date.now() + 8 * 3600000),
+        httpOnly: true,
+        sameSite: isProduction ? "none" : "lax",
+        secure: isProduction,
+    };
+};
 
 // creating signup router
 authRouter.post("/signup", async (req, res) => {
@@ -25,7 +35,7 @@ authRouter.post("/signup", async (req, res) => {
 
         const savedUser = await user.save()
         const token = jwt.sign({ _id: savedUser._id }, "secretmasala@123_321", { expiresIn: "7d" });
-        res.cookie("token", token, { expires: new Date(Date.now() + 8 * 3600000) })
+        res.cookie("token", token, getCookieOptions())
         res.status(201).json(savedUser)
 
     } catch (err) {
@@ -65,7 +75,7 @@ authRouter.post("/login", async (req, res) => {
         // create a token using jwt.sign(payload , secret)
         const token = jwt.sign({ _id: user._id }, "secretmasala@123_321", { expiresIn: "7d" });
         // sending back the cookie
-        res.cookie("token", token, { expires: new Date(Date.now() + 8 * 3600000) })
+        res.cookie("token", token, getCookieOptions())
         // If both email and password are valid, send the user data as response
         res.json(user)
 
@@ -78,7 +88,8 @@ authRouter.post("/login", async (req, res) => {
 authRouter.post("/logout", (req, res) => {
     try {
         // to log out we just simple have to clear the cookies
-        res.clearCookie("token")
+        const { expires, ...clearCookieOptions } = getCookieOptions();
+        res.clearCookie("token", clearCookieOptions)
         res.json("user Logged out Successfully")
     } catch (err) {
         res.status(400).json("error logging out the user", err.message)
