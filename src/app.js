@@ -8,18 +8,15 @@ const websiteRouter = require("./routes/website")
 const paymentRouter = require("./routes/payment")
 const app = express();   
 const PORT = process.env.PORT || 7777;
-const allowedOrigins = [
-  (process.env.FRONTEND_URL || "").trim().replace(/\/$/, ""),
-  "https://aivoraxx.vercel.app",
-  "http://localhost:5173",
-].filter(Boolean);
+const localOrigin = "http://localhost:5173";
+const frontendOrigin = (process.env.FRONTEND_URL || localOrigin).trim().replace(/\/$/, "");
 
 app.use(express.json()); 
 app.use(cookieParser());
 app.use((req, res, next) => {
   const origin = (req.headers.origin || "").trim().replace(/\/$/, "");
 
-  if (allowedOrigins.includes(origin)) {
+  if (origin === frontendOrigin || origin === localOrigin) {
     res.header("Access-Control-Allow-Origin", origin);
     res.header("Access-Control-Allow-Credentials", "true");
     res.header(
