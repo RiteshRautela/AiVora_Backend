@@ -14,19 +14,20 @@ const PORT = process.env.PORT || 7777;
 app.use(express.json()); 
 app.use(cookieParser());
 
-// app.use(cors({
-//   origin: process.env.FRONTEND_URL,
-//   credentials: true, 
-//    methods: ["GET", "POST", "PATCH", "DELETE", "PUT"],
-// }))
-app.use((req, res, next) => {
+app.use(cors({
+  origin: "https://aivoraxx.vercel.app",
+  credentials: true,
+  methods: ["GET", "POST", "PATCH", "DELETE", "PUT", "OPTIONS"],
+}));
 
-  res.header("Access-Control-Allow-Origin", "https://aivoraxx.vercel.app");
-  res.header("Access-Control-Allow-Credentials", "true");
-  res.header("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, PUT, OPTIONS");
-  res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
-  next();
-});
+// app.use((req, res, next) => {
+
+//   res.header("Access-Control-Allow-Origin", "https://aivoraxx.vercel.app");
+//   res.header("Access-Control-Allow-Credentials", "true");
+//   res.header("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, PUT, OPTIONS");
+//   res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
+//   next();
+// });
 
 
 
