@@ -9,7 +9,7 @@ const paymentRouter = require("./routes/payment")
 const app = express();   
 const cors = require("cors");
 const PORT = process.env.PORT || 7777;
-const FRONTEND_URL = process.env.FRONTEND_URL;
+
 
 app.use(express.json()); 
 app.use(cookieParser());
@@ -20,7 +20,8 @@ app.use(cookieParser());
 //    methods: ["GET", "POST", "PATCH", "DELETE", "PUT"],
 // }))
 app.use((req, res, next) => {
-  res.header("Access-Control-Allow-Origin", process.env.FRONTEND_URL);
+
+  res.header("Access-Control-Allow-Origin", "https://aivoraxx.vercel.app");
   res.header("Access-Control-Allow-Credentials", "true");
   res.header("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, PUT, OPTIONS");
   res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
