@@ -55,5 +55,6 @@ const websiteSchema = new mongoose.Schema({
 
 } ,{timestamps:true})
 
+websiteSchema.index({ user: 1 });
 
 module.exports = mongoose.model("Website" , websiteSchema);
