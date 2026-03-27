@@ -6,15 +6,24 @@ const User = require("../models/user")
 const jwt = require("jsonwebtoken");
 
 const getCookieOptions = () => {
-    const isProduction = process.env.NODE_ENV === "production";
-
     return {
         expires: new Date(Date.now() + 8 * 3600000),
         httpOnly: true,
-        sameSite: isProduction ? "none" : "lax",
-        secure: isProduction,
+        sameSite: "none",
+        secure: true,
     };
 };
+
+// const getCookieOptions = () => {
+//     const isProduction = process.env.NODE_ENV === "production";
+
+//     return {
+//         expires: new Date(Date.now() + 8 * 3600000),
+//         httpOnly: true,
+//         sameSite: none,
+//         secure: true,
+//     };
+// };
 
 // creating signup router
 authRouter.post("/signup", async (req, res) => {
