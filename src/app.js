@@ -9,25 +9,18 @@ const paymentRouter = require("./routes/payment")
 const app = express();   
 const cors = require("cors");
 const PORT = process.env.PORT || 7777;
-const allowedOrigins = [
-  process.env.FRONTEND_URL,
-  "http://localhost:5173",
-  "https://aivoraxx.vercel.app",
-].filter(Boolean);
 
 app.use(express.json()); 
 app.use(cookieParser());
 app.use(cors({
-  origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes(origin)) {
-      return callback(null, true);
-    }
-    return callback(new Error("Not allowed by CORS"));
-  },
+  origin: process.env.FRONTEND_URL,
   credentials: true, 
    methods: ["GET", "POST", "PATCH", "DELETE", "PUT"],
 }))
 
+app.get("/", (req, res) => {
+  res.send("Backend is running");
+});
 
 
 app.use("/" , authRouter)
