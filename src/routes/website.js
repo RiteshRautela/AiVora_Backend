@@ -333,13 +333,15 @@ websiteRouter.get("/getbyslug/:slug", async (req, res) => {
   try {
     const website = await Website.findOne({
       slug: req.params.slug,
-    });
+    })
+      .select({ latexcode: 1, _id: 0 })
+      .lean();
 
     if (!website) {
       return res.status(404).json({ message: "website not found" });
     }
 
-    return res.status(200).json(website);
+    return res.status(200).json({ latexcode: website.latexcode });
   } catch (error) {
     return res.status(500).json({
       message: `get website by slug error ${error.message}`,
