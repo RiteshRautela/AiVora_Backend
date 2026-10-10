@@ -15,7 +15,10 @@ app.use(express.json());
 app.use(cookieParser());
 
 app.use(cors({
-  origin: "https://aivoraxx.vercel.app",
+  origin:[
+    "http://localhost:5173",
+    "https://aivoraxx.vercel.app",
+  ],
   credentials: true,
   methods: ["GET", "POST", "PATCH", "DELETE", "PUT", "OPTIONS"],
 }));
