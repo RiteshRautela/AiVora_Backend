@@ -39,6 +39,10 @@ const paymentSchema = new mongoose.Schema(
       required: true,
       default: "created",
     },
+    creditsApplied: {
+      type: Boolean,
+      default: undefined,
+    },
     amount: {
       type: Number,
       required: true,

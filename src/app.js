@@ -11,12 +11,18 @@ const cors = require("cors");
 const PORT = process.env.PORT || 7777;
 
 
-app.use(express.json()); 
+app.use(express.json({
+  verify: (req, res, body) => {
+    // Keep the exact bytes so Razorpay webhook signatures can be verified.
+    req.rawBody = Buffer.from(body);
+  },
+}));
 app.use(cookieParser());
 
 app.use(cors({
   origin:[
     "http://localhost:5173",
+    "http://localhost:5174",
     "https://aivoraxx.vercel.app",
   ],
   credentials: true,

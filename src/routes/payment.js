@@ -1,5 +1,6 @@
 const crypto = require("crypto");
 const express = require("express");
+const mongoose = require("mongoose");
 const plans = require("../config/plans");
 const { userAuth } = require("../middleware/auth");
 const Payment = require("../models/payment");
@@ -8,13 +9,31 @@ const instance = require("../util/razorpay");
 
 const paymentRouter = express.Router();
 
+const applyPaymentCredits = async (payment, session) => {
+  if (payment.creditsApplied === true) {
+    return;
+  }
+
+  const user = await User.findById(payment.userId).session(session);
+  if (!user) {
+    throw new Error("Payment user not found");
+  }
+
+  user.credits += payment.credits;
+  user.plan = payment.plan;
+  await user.save({ session });
+  payment.creditsApplied = true;
+};
+
 const verifyWebhookSignature = (body, signature, secret) => {
   const expectedSignature = crypto
     .createHmac("sha256", secret.trim())
     .update(body)
-    .digest("hex");
+    .digest();
+  const providedSignature = Buffer.from(signature, "hex");
 
-  return expectedSignature === signature;
+  return providedSignature.length === expectedSignature.length &&
+    crypto.timingSafeEqual(expectedSignature, providedSignature);
 };
 
 paymentRouter.post("/payment/create", userAuth, async (req, res) => {
@@ -79,6 +98,7 @@ paymentRouter.post("/payment/create", userAuth, async (req, res) => {
       credits: selectedBillingCycle.credits,
       orderId: order.id,
       status: order.status,
+      creditsApplied: false,
       amount: selectedBillingCycle.amount,
       currency: order.currency,
       receipt: order.receipt,
@@ -134,40 +154,54 @@ paymentRouter.post("/premium/verify", userAuth, async (req, res) => {
       });
     }
 
-    const payment = await Payment.findOne({
-      orderId: razorpay_order_id,
-      userId: req.user._id,
-    });
+    const session = await mongoose.startSession();
+    let result;
 
-    if (!payment) {
-      return res.status(404).json({
-        message: "Payment record not found",
+    try {
+      await session.withTransaction(async () => {
+        const payment = await Payment.findOne({
+          orderId: razorpay_order_id,
+          userId: req.user._id,
+        }).session(session);
+
+        if (!payment) {
+          result = { notFound: true };
+          return;
+        }
+
+        const alreadyPaid = payment.status === "paid";
+        if (!alreadyPaid || payment.creditsApplied === false) {
+          await applyPaymentCredits(payment, session);
+        }
+
+        payment.paymentId = razorpay_payment_id;
+        payment.signature = razorpay_signature;
+        payment.status = "paid";
+        await payment.save({ session });
+
+        const user = await User.findById(req.user._id).session(session);
+        result = {
+          alreadyPaid,
+          credits: user.credits,
+          plan: user.plan,
+          billingCycle: payment.billingCycle,
+        };
       });
+    } finally {
+      await session.endSession();
     }
 
-    if (payment.status === "paid") {
-      return res.status(200).json({
-        message: "Payment already verified",
-        credits: req.user.credits,
-        plan: req.user.plan,
-      });
+    if (result?.notFound) {
+      return res.status(404).json({ message: "Payment record not found" });
     }
-
-    payment.paymentId = razorpay_payment_id;
-    payment.signature = razorpay_signature;
-    payment.status = "paid";
-
-    req.user.credits += payment.credits;
-    req.user.plan = payment.plan;
-
-    await payment.save();
-    await req.user.save();
 
     return res.status(200).json({
-      message: "Payment verified successfully",
-      credits: req.user.credits,
-      plan: req.user.plan,
-      billingCycle: payment.billingCycle,
+      message: result.alreadyPaid
+        ? "Payment already verified"
+        : "Payment verified successfully",
+      credits: result.credits,
+      plan: result.plan,
+      billingCycle: result.billingCycle,
     });
   } catch (err) {
     console.error("PAYMENT VERIFY ERROR:", err);
@@ -197,8 +231,12 @@ paymentRouter.post("/payment/webhook", async (req, res) => {
       });
     }
 
+    if (!Buffer.isBuffer(req.rawBody)) {
+      return res.status(400).json({ message: "Raw webhook body is unavailable" });
+    }
+
     const isWebhookValid = verifyWebhookSignature(
-      JSON.stringify(req.body),
+      req.rawBody,
       webhookSignature,
       webhookSecret
     );
@@ -217,39 +255,43 @@ paymentRouter.post("/payment/webhook", async (req, res) => {
       });
     }
 
-    const payment = await Payment.findOne({
-      orderId: paymentDetails.order_id,
-    });
+    const session = await mongoose.startSession();
+    let paymentFound = false;
 
-    if (!payment) {
-      return res.status(404).json({
-        message: "Payment record not found",
+    try {
+      await session.withTransaction(async () => {
+        const payment = await Payment.findOne({
+          orderId: paymentDetails.order_id,
+        }).session(session);
+
+        if (!payment) {
+          return;
+        }
+        paymentFound = true;
+        payment.paymentId = paymentDetails.id || payment.paymentId;
+
+        if (req.body.event === "payment.captured") {
+          const wasAlreadyPaid = payment.status === "paid";
+          payment.status = "paid";
+          if (
+            payment.creditsApplied === false ||
+            (!wasAlreadyPaid && payment.creditsApplied === undefined)
+          ) {
+            await applyPaymentCredits(payment, session);
+          }
+        } else if (payment.status !== "paid") {
+          payment.status = paymentDetails.status || req.body.event || payment.status;
+        }
+
+        await payment.save({ session });
       });
+    } finally {
+      await session.endSession();
     }
 
-    payment.paymentId = paymentDetails.id || payment.paymentId;
-    payment.status = paymentDetails.status || payment.status;
-
-    if (req.body.event === "payment.captured" && payment.status !== "paid") {
-      payment.status = "paid";
+    if (!paymentFound) {
+      return res.status(404).json({ message: "Payment record not found" });
     }
-
-    if (
-      req.body.event === "payment.captured" &&
-      payment.status === "paid" &&
-      !payment.signature
-    ) {
-      const user = await User.findById(payment.userId);
-
-      if (user) {
-        user.credits += payment.credits;
-        user.plan = payment.plan;
-        await user.save();
-      }
-    }
-
-    payment.signature = webhookSignature;
-    await payment.save();
 
     return res.status(200).json({
       message: "Webhook received successfully",

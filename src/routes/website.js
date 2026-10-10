@@ -2,25 +2,38 @@ const express = require("express");
 const websiteRouter = express.Router();
 const { userAuth } = require("../middleware/auth");
 const Website = require("../models/website");
-const generateResponse = require("../config/openRouter");
+const User = require("../models/user");
+const generateResponse = require("../config/gemini");
+const buildMasterPrompt = require("../config/masterPrompt");
 const extractJson = require("../util/extractJson");
 
 websiteRouter.post("/generate", userAuth, async (req, res) => {
+  let creditReserved = false;
+
   try {
     const { prompt } = req.body;
     const { _id } = req.user;
 
-    if (!prompt) {
+    if (typeof prompt !== "string" || !prompt.trim()) {
       return res.status(400).json({ message: "prompt is required" });
     }
 
-    if (req.user.credits <= 0) {
+    const normalizedPrompt = prompt.trim();
+
+    const reservedUser = await User.findOneAndUpdate(
+      { _id, credits: { $gt: 0 } },
+      { $inc: { credits: -1 } },
+      { new: true }
+    );
+
+    if (!reservedUser) {
       return res.status(403).json({
         message: "Not enough credits to generate a website",
       });
     }
+    creditReserved = true;
 
-    const finalPrompt = process.env.masterPrompt.replace("USER_PROMPT", prompt);
+    const finalPrompt = buildMasterPrompt(normalizedPrompt);
 
     // 🔥 CALL AI
     let aiResponse = await generateResponse(finalPrompt);
@@ -72,7 +85,7 @@ websiteRouter.post("/generate", userAuth, async (req, res) => {
 
     // 🔥 CREATE SLUG
     const slug =
-      prompt
+      normalizedPrompt
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, "-")
         .slice(0, 40) +
@@ -82,28 +95,38 @@ websiteRouter.post("/generate", userAuth, async (req, res) => {
     // 🔥 SAVE TO DB
     const website = new Website({
       user: _id,
-      title: prompt.slice(0, 60),
+      title: normalizedPrompt.slice(0, 60),
       slug,
       latexcode: cleanAiResponse.code,
       conversations: [
-        { role: "user", content: prompt },
+        { role: "user", content: normalizedPrompt },
         { role: "ai", content: cleanAiResponse.message },
       ],
     });
 
     await website.save();
-    req.user.credits -= 1;
-    await req.user.save();
+    creditReserved = false;
 
     // 🔥 RESPONSE
     return res.status(201).json({
       website: website._id,
-      remainingCredits: req.user.credits,
+      remainingCredits: reservedUser.credits,
     });
 
   } catch (err) {
     console.error("❌ GENERATE ERROR:", err);
     return res.status(500).json({ message: err.message });
+  } finally {
+    if (creditReserved) {
+      try {
+        await User.updateOne(
+          { _id: req.user._id },
+          { $inc: { credits: 1 } }
+        );
+      } catch (refundError) {
+        console.error("Failed to release reserved generation credit:", refundError);
+      }
+    }
   }
 });
 // GET WEBSITE BY ID

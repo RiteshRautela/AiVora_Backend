@@ -4,6 +4,8 @@ const bcrypt = require("bcryptjs")
 const { validateSignupInput, validateLogIn } = require("../util/validation")
 const User = require("../models/user")
 const jwt = require("jsonwebtoken");
+const getJwtSecret = require("../config/jwtSecret");
+const toPublicUser = require("../util/publicUser");
 
 const getCookieOptions = () => {
     return {
@@ -28,6 +30,7 @@ const getCookieOptions = () => {
 // creating signup router
 authRouter.post("/signup", async (req, res) => {
     try {
+        const jwtSecret = getJwtSecret();
         validateSignupInput(req)
         // exctracting validate data from the req.body
         const { firstName, lastName, emailId, password } = req.body;
@@ -43,12 +46,13 @@ authRouter.post("/signup", async (req, res) => {
         })
 
         const savedUser = await user.save()
-        const token = jwt.sign({ _id: savedUser._id }, "secretmasala@123_321", { expiresIn: "7d" });
+        const token = jwt.sign({ _id: savedUser._id }, jwtSecret, { expiresIn: "7d" });
         res.cookie("token", token, getCookieOptions())
-        res.status(201).json(savedUser)
+        res.status(201).json(toPublicUser(savedUser))
 
     } catch (err) {
-        res.status(400).json({ error: err.message });
+        const status = err.code === "JWT_SECRET_NOT_CONFIGURED" ? 500 : 400;
+        res.status(status).json({ error: err.message });
     }
 })
 
@@ -56,6 +60,7 @@ authRouter.post("/signup", async (req, res) => {
 
 authRouter.post("/login", async (req, res) => {
     try {
+        const jwtSecret = getJwtSecret();
         validateLogIn(req)
         // exctracting validate data from the req.body
         const { password, emailId } = req.body
@@ -82,14 +87,15 @@ authRouter.post("/login", async (req, res) => {
 
 
         // create a token using jwt.sign(payload , secret)
-        const token = jwt.sign({ _id: user._id }, "secretmasala@123_321", { expiresIn: "7d" });
+        const token = jwt.sign({ _id: user._id }, jwtSecret, { expiresIn: "7d" });
         // sending back the cookie
         res.cookie("token", token, getCookieOptions())
         // If both email and password are valid, send the user data as response
-        res.json(user)
+        res.json(toPublicUser(user))
 
     } catch (err) {
-        res.status(400).json({ error: err.message })
+        const status = err.code === "JWT_SECRET_NOT_CONFIGURED" ? 500 : 400;
+        res.status(status).json({ error: err.message })
     }
 })
 
